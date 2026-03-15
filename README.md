@@ -25,56 +25,7 @@
 
 ## Architecture
 
-```mermaid
-graph TB
-    subgraph Client["Client Layer"]
-        APP[Mobile App - Flutter]
-        ADMIN[Admin Dashboard - Next.js 15]
-    end
-
-    subgraph API["API Server - Spring Boot 3.x"]
-        GW[REST API Controller]
-        SEC[Spring Security + JWT]
-
-        subgraph Core["Core Modules"]
-            POINT[Point Service<br/>트랜잭션 원장]
-            TICKET[Ticket Service<br/>FIFO 소진]
-            BOX[RandomBox Service<br/>확률 엔진]
-            AD[Ad Mediation<br/>Strategy 패턴]
-            ACTION[Action Service<br/>8종 미니게임]
-            INVITE[Invite Service<br/>마일스톤 보상]
-        end
-
-        subgraph Infra["Infrastructure"]
-            LOCK[Distributed Lock<br/>지수 백오프]
-            LEADER[Leader Election<br/>배치 조정]
-            SCHED[Scheduler<br/>만료/정산]
-        end
-    end
-
-    subgraph Data["Data Layer"]
-        MYSQL[(MySQL 8.0<br/>Flyway Migration)]
-        REDIS[(Redis 7<br/>Lock & Cache)]
-    end
-
-    subgraph Cloud["AWS ECS"]
-        ECS1[Instance 1 - Leader]
-        ECS2[Instance 2]
-        ECS3[Instance 3]
-    end
-
-    APP --> GW
-    ADMIN --> GW
-    GW --> SEC --> Core
-    Core --> LOCK
-    Core --> MYSQL
-    LOCK --> REDIS
-    LEADER --> REDIS
-    SCHED --> LEADER
-    ECS1 -.-> LEADER
-    ECS2 -.-> LEADER
-    ECS3 -.-> LEADER
-```
+![Architecture](docs/images/architecture.png)
 
 ## Key Features
 
@@ -82,25 +33,7 @@ graph TB
 
 포인트(1차 화폐)와 티켓(2차 화폐)을 **트랜잭션 원장 패턴**으로 관리합니다.
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant PS as PointService
-    participant PT as PointTransaction
-    participant RL as Redis Lock
-    participant DB as MySQL
-
-    U->>PS: earnPoints(userId, 100, RANDOM_BOX)
-    PS->>RL: acquireLock("point:lock:user:1")
-    RL-->>PS: lock acquired
-    PS->>PT: CREATE(EARN, 100, exp=365d)
-    PT->>DB: INSERT INTO point_transactions
-    PS->>DB: UPDATE points SET available += 100
-    PS->>RL: releaseLock()
-
-    Note over PS,DB: 가용 포인트 계산 (Source of Truth)
-    PS->>DB: SUM(EARN, 미만료) - SUM(USE) - SUM(EXPIRE)
-```
+![Dual Currency System](docs/images/dual-currency.png)
 
 **핵심 설계:**
 - `PointTransaction`이 Source of Truth (원장)
@@ -113,34 +46,7 @@ sequenceDiagram
 
 `SecureRandom + BigDecimal` 정밀 연산으로 공정한 확률을 보장합니다.
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant RS as RandomBoxService
-    participant TS as TicketService
-    participant PE as PrizeEngine
-    participant PS as PointService
-
-    U->>RS: purchaseBox(userId, boxId)
-    RS->>TS: useTickets(userId, 10, RANDOM_BOX)
-    Note over TS: FIFO 소진 처리
-
-    RS->>PE: selectPrize(availablePrizes)
-    Note over PE: SecureRandom → 0~100<br/>누적 확률 비교<br/>재고 확인 & 차감
-
-    alt Prize Won (Point)
-        PE-->>RS: RandomBoxPrize(POINT, 50~200P)
-        RS->>PS: earnPoints(userId, randomValue)
-    else Prize Won (Gifticon)
-        PE-->>RS: RandomBoxPrize(GIFTICON)
-        RS->>RS: issueGifticon()
-    else No Prize
-        PE-->>RS: null
-    end
-
-    RS->>RS: saveWinningHistory()
-    RS-->>U: PurchaseResult
-```
+![Probability Engine](docs/images/probability-engine.png)
 
 **누적 확률 알고리즘:**
 ```
@@ -155,38 +61,7 @@ sequenceDiagram
 
 3대 광고 플랫폼(AdMob, Unity Ads, Vungle)을 **Fill Rate 기반으로 동적 최적화**합니다.
 
-```mermaid
-graph LR
-    subgraph Strategies["Strategy Pattern"]
-        I["🔌 AdRewardStrategy<br/>Interface"]
-        T["🎫 TicketReward<br/>티켓 3장 지급"]
-        E["🎲 ExtraChance<br/>게임 추가 기회"]
-        B["⚡ RewardBoost<br/>1.5x 보상 배율<br/>Redis TTL 30min"]
-        D["🔄 DrawRetry<br/>랜덤박스 재도전<br/>Redis TTL 10min"]
-    end
-
-    subgraph Mediation["Mediation Queue"]
-        M["AdMediationService"]
-        P1["AdMob<br/>Priority 1 · Fill 85%"]
-        P2["Unity Ads<br/>Priority 2 · Fill 78%"]
-        P3["Vungle<br/>Priority 3 · Fill 72%"]
-    end
-
-    subgraph Batch["Daily Batch (03:00)"]
-        OPT["AdMediationScheduler<br/>Fill Rate 기반 재정렬"]
-        MET["AdDailyMetrics<br/>requests · impressions<br/>clicks · revenue"]
-    end
-
-    I --> T
-    I --> E
-    I --> B
-    I --> D
-    M --> P1
-    M --> P2
-    M --> P3
-    MET --> OPT
-    OPT --> M
-```
+![Ad Mediation - Strategy Pattern](docs/images/ad-mediation.png)
 
 **핵심 설계:**
 
@@ -210,36 +85,7 @@ graph LR
 
 ECS Fargate 다중 인스턴스(2~4대) 환경에서 **동시성 제어**와 **배치 중복 실행 방지**를 구현합니다.
 
-```mermaid
-sequenceDiagram
-    participant I1 as ECS Instance 1
-    participant I2 as ECS Instance 2
-    participant R as Redis
-    participant DB as MySQL
-
-    Note over I1,I2: 🕛 배치 실행 시점 (매일 자정)
-
-    I1->>R: SET reward:scheduler:leader:pointExpiry<br/>NX EX 300 → "ecs-task-abc"
-    R-->>I1: OK (리더 선출됨)
-
-    I2->>R: SET reward:scheduler:leader:pointExpiry<br/>NX EX 300 → "ecs-task-def"
-    R-->>I2: FAIL (이미 리더 있음)
-
-    I1->>DB: processExpiredPoints()
-    Note over I1: BatchExecutionHistory 기록<br/>IN_PROGRESS → SUCCESS<br/>처리 건수 · 소요 시간
-
-    I2->>I2: skip (not leader)
-
-    Note over I1: 60초마다 TTL 갱신
-    I1->>R: EXPIRE leader:pointExpiry 300
-
-    Note over R: 🔒 동시성 제어 (포인트 적립)
-
-    I1->>R: SET reward:lock:point:user:123<br/>NX EX 30 → UUID
-    R-->>I1: OK
-    Note over I1: 지수 백오프 재시도<br/>50ms → 100ms → 200ms<br/>→ 400ms → 800ms
-    I1->>R: DEL (UUID 검증 후 해제)
-```
+![Distributed Lock & Leader Election](docs/images/distributed-lock.png)
 
 **핵심 설계:**
 

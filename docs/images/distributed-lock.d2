@@ -1,0 +1,39 @@
+direction: right
+
+i1: "ECS Instance 1\n(Leader)" {
+  style.fill: "#16213e"
+  style.stroke: "#53bf9d"
+}
+
+i2: "ECS Instance 2" {
+  style.fill: "#16213e"
+  style.stroke: "#e94560"
+}
+
+redis: "Redis 7" {
+  shape: cylinder
+  style.fill: "#1a1a2e"
+  style.stroke: "#f7dc6f"
+}
+
+db: "MySQL 8.0" {
+  shape: cylinder
+  style.fill: "#1a1a2e"
+  style.stroke: "#53bf9d"
+}
+
+flow: "동작 흐름" {
+  style.fill: "#0f3460"
+  style.stroke: "#e94560"
+
+  s1: "① 리더 선출\nSET leader:pointExpiry\nNX EX 300" {style.fill: "#1a1a2e"}
+  s2: "② 배치 실행 (리더만)\nprocessExpiredPoints()" {style.fill: "#1a1a2e"}
+  s3: "③ 동시성 제어\nSET lock:point:user:123\nNX EX 30 + UUID" {style.fill: "#1a1a2e"}
+  s4: "④ 지수 백오프\n50→100→200→400→800ms" {style.fill: "#1a1a2e"}
+
+  s1 -> s2 -> s3 -> s4
+}
+
+i1 -> redis: "SET NX EX → OK ✅" {style.stroke: "#53bf9d"}
+i2 -> redis: "SET NX EX → FAIL ❌" {style.stroke: "#e94560"; style.stroke-dash: 5}
+i1 -> db: "배치 실행" {style.stroke: "#53bf9d"}

@@ -1,0 +1,52 @@
+direction: right
+
+strategy: "Strategy Pattern" {
+  style.fill: "#0f3460"
+  style.stroke: "#e94560"
+
+  interface: "AdRewardStrategy\n(Interface)" {
+    style.fill: "#1a1a2e"
+    style.stroke: "#e94560"
+    style.font-color: "#e94560"
+  }
+
+  ticket: "TicketRewardStrategy\n🎫 티켓 3장 지급" {style.fill: "#1a1a2e"; style.stroke: "#53bf9d"}
+  extra: "ExtraChanceStrategy\n🎲 게임 추가 기회" {style.fill: "#1a1a2e"; style.stroke: "#53bf9d"}
+  boost: "RewardBoostStrategy\n⚡ 1.5x 보상 배율\nRedis TTL 30min" {style.fill: "#1a1a2e"; style.stroke: "#f7dc6f"}
+  retry: "DrawRetryStrategy\n🔄 랜덤박스 재도전\nRedis TTL 10min" {style.fill: "#1a1a2e"; style.stroke: "#f7dc6f"}
+
+  interface -> ticket
+  interface -> extra
+  interface -> boost
+  interface -> retry
+}
+
+mediation: "Mediation Queue" {
+  style.fill: "#0f3460"
+  style.stroke: "#53bf9d"
+
+  service: "AdMediationService" {
+    style.fill: "#1a1a2e"
+    style.stroke: "#53bf9d"
+  }
+
+  p1: "AdMob\nPriority 1 · Fill 85%" {style.fill: "#1a1a2e"}
+  p2: "Unity Ads\nPriority 2 · Fill 78%" {style.fill: "#1a1a2e"}
+  p3: "Vungle\nPriority 3 · Fill 72%" {style.fill: "#1a1a2e"}
+
+  service -> p1
+  service -> p2
+  service -> p3
+}
+
+batch: "Daily Batch (03:00)" {
+  style.fill: "#0f3460"
+  style.stroke: "#f7dc6f"
+
+  scheduler: "AdMediationScheduler\nFill Rate 기반 재정렬" {style.fill: "#1a1a2e"}
+  metrics: "AdDailyMetrics\nrequests · impressions\nclicks · revenue" {style.fill: "#1a1a2e"}
+
+  metrics -> scheduler
+}
+
+batch.scheduler -> mediation.service: "우선순위 업데이트" {style.stroke: "#f7dc6f"}

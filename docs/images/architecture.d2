@@ -1,0 +1,84 @@
+direction: right
+
+Client: Client Layer {
+  style.fill: "#1a1a2e"
+  style.stroke: "#e94560"
+
+  app: Mobile App (Flutter) {
+    style.fill: "#16213e"
+    style.stroke: "#0f3460"
+  }
+  admin: Admin Dashboard (Next.js 15) {
+    style.fill: "#16213e"
+    style.stroke: "#0f3460"
+  }
+}
+
+api: API Server — Spring Boot 3.x {
+  style.fill: "#0f3460"
+  style.stroke: "#e94560"
+
+  gw: REST API Controller {
+    style.fill: "#1a1a2e"
+  }
+  sec: Spring Security + JWT {
+    style.fill: "#1a1a2e"
+  }
+
+  core: Core Modules {
+    style.fill: "#16213e"
+    style.stroke: "#53bf9d"
+
+    point: "Point Service\n트랜잭션 원장" {style.fill: "#1a1a2e"}
+    ticket: "Ticket Service\nFIFO 소진" {style.fill: "#1a1a2e"}
+    box: "RandomBox\n확률 엔진" {style.fill: "#1a1a2e"}
+    ad: "Ad Mediation\nStrategy 패턴" {style.fill: "#1a1a2e"}
+    action: "Action Service\n8종 미니게임" {style.fill: "#1a1a2e"}
+    invite: "Invite Service\n마일스톤 보상" {style.fill: "#1a1a2e"}
+  }
+
+  infra: Infrastructure {
+    style.fill: "#16213e"
+    style.stroke: "#f7dc6f"
+
+    lock: "Distributed Lock\n지수 백오프" {style.fill: "#1a1a2e"}
+    leader: "Leader Election\n배치 조정" {style.fill: "#1a1a2e"}
+    batch: "BatchExecutionManager\n실행 이력 관리" {style.fill: "#1a1a2e"}
+  }
+
+  gw -> sec
+  sec -> core
+  core -> infra.lock
+}
+
+data: Data Layer {
+  style.fill: "#1a1a2e"
+  style.stroke: "#53bf9d"
+
+  mysql: "MySQL 8.0\nFlyway Migration" {
+    shape: cylinder
+    style.fill: "#16213e"
+  }
+  redis: "Redis 7\nLock & Cache" {
+    shape: cylinder
+    style.fill: "#16213e"
+  }
+}
+
+ecs: AWS ECS Fargate {
+  style.fill: "#1a1a2e"
+  style.stroke: "#f7dc6f"
+
+  i1: "Instance 1 (Leader)" {style.fill: "#16213e"}
+  i2: "Instance 2" {style.fill: "#16213e"}
+  i3: "Instance 3" {style.fill: "#16213e"}
+}
+
+Client.app -> api.gw
+Client.admin -> api.gw
+api.core -> data.mysql
+api.infra.lock -> data.redis
+api.infra.leader -> data.redis
+ecs.i1 -> api.infra.leader: heartbeat {style.stroke-dash: 5}
+ecs.i2 -> api.infra.leader: {style.stroke-dash: 5}
+ecs.i3 -> api.infra.leader: {style.stroke-dash: 5}

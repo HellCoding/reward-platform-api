@@ -1,0 +1,64 @@
+direction: down
+
+user: User {
+  style.fill: "#16213e"
+  style.stroke: "#e94560"
+  shape: person
+}
+
+ps: PointService {
+  style.fill: "#0f3460"
+  style.stroke: "#53bf9d"
+}
+
+lock: "Redis Lock\nSET NX EX 30\n+ UUID" {
+  shape: cylinder
+  style.fill: "#1a1a2e"
+  style.stroke: "#f7dc6f"
+}
+
+ledger: "PointTransaction (원장)" {
+  style.fill: "#0f3460"
+  style.stroke: "#e94560"
+
+  earn: |md
+    **EARN** +100P
+    source: RANDOM_BOX
+    expiresAt: 365일
+    remainingAmount: 100
+  | {style.fill: "#1a1a2e"}
+
+  use: |md
+    **USE** -30P
+    FIFO: 가장 오래된 적립부터 차감
+  | {style.fill: "#1a1a2e"}
+
+  expire: |md
+    **EXPIRE** -70P
+    배치: 365일 경과 자동 만료
+  | {style.fill: "#1a1a2e"}
+}
+
+cache: |md
+  **Point.availableAmount**
+  = SUM(EARN) - SUM(USE) - SUM(EXPIRE)
+  ⚡ 캐시 역할 (SOT 아님)
+| {
+  style.fill: "#1a1a2e"
+  style.stroke: "#53bf9d"
+}
+
+db: MySQL {
+  shape: cylinder
+  style.fill: "#1a1a2e"
+  style.stroke: "#53bf9d"
+}
+
+user -> ps: "earnPoints(userId, 100)"
+ps -> lock: "acquireLock()"
+ps -> ledger.earn: "INSERT"
+ps -> cache: "UPDATE available += 100"
+ledger.earn -> db
+ledger.use -> db
+ledger.expire -> db
+cache -> db
